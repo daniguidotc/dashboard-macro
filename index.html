@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Dashboard Macro</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body.cloud .gear, body.cloud .addbtn, body.cloud #trash-btn, body.cloud #newblock-btn, body.cloud td.del button { display:none !important; }
+  :root {
+    --bg: #eef1f5; --card: #ffffff; --border: #e3e7ec; --text: #1f2630;
+    --muted: #8a94a3; --up: #14a44d; --down: #dc3545; --accent: #2962ff;
+    --closed: #fdf1f1; --closed-t: #c98a8a; --rowline: #f2f4f7;
+    --flash-g: #d9f3e3; --flash-r: #fde3e5; --label: #3a4452;
+  }
+  body.dark {
+    --bg: #14181e; --card: #1d232b; --border: #2b333e; --text: #e4e9f0;
+    --muted: #7d8896; --up: #2ecc71; --down: #ff6b6b; --accent: #5b8cff;
+    --closed: #322227; --closed-t: #a96f73; --rowline: #252d37;
+    --flash-g: #1f4632; --flash-r: #532b31; --label: #c2cbd6;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text);
+    font: 13px/1.45 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  header { display: flex; align-items: center; gap: 14px; padding: 10px 18px;
+    background: var(--card); border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 500; }
+  header h1 { font-size: 16px; font-weight: 700; }
+  header .status { color: var(--muted); font-size: 12px; }
+  header .status.haserr { cursor: pointer; text-decoration: underline dotted; }
+  header .legend { font-size: 11px; color: var(--muted); }
+  header .legend span { background: var(--closed); padding: 1px 6px; border-radius: 4px; }
+  header .spacer { flex: 1; }
+  button { cursor: pointer; border: 1px solid var(--border); background: var(--card);
+    border-radius: 6px; padding: 5px 10px; font-size: 12px; color: var(--text); }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  input, textarea { background: var(--card); color: var(--text); }
+
+  .board { position: relative; min-height: calc(100vh - 50px); overflow: visible; }
+
+  .block { background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+    overflow: hidden; position: absolute; display: flex; flex-direction: column;
+    box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+  .block.moving { box-shadow: 0 8px 24px rgba(0,0,0,.18); opacity: .92; }
+  .block.item-drop { outline: 2px dashed var(--up); outline-offset: 2px; }
+  .block-head { display: flex; align-items: center; padding: 8px 10px;
+    border-bottom: 1px solid var(--border); cursor: grab; user-select: none; flex: 0 0 auto; }
+  .block-head:active { cursor: grabbing; }
+  .block-head .grip { color: var(--muted); margin-right: 7px; font-size: 13px; }
+  .block-head h2 { font-size: 13px; font-weight: 700; flex: 1; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; }
+  .gear { background: none; border: none; color: var(--muted); font-size: 14px; padding: 2px 4px; }
+  .gear:hover { color: var(--accent); }
+
+  .bwrap { overflow: auto; flex: 1 1 auto; min-height: 0; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  td { padding: 4px 6px; border-bottom: 1px solid var(--rowline); white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; }
+  td:first-child { padding-left: 10px; } td:last-child { padding-right: 8px; }
+  tr:last-child td { border-bottom: none; }
+  td.flag { width: 30px; text-align: center; }
+  td.label { color: var(--label); }
+  td.price { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600;
+    width: 76px; }
+  td.pct { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; width: 62px; }
+  td.time { text-align: right; color: var(--muted); font-size: 10.5px; width: 44px;
+    font-variant-numeric: tabular-nums; }
+  td.del { width: 18px; text-align: center; padding: 0 2px 0 0; }
+  td.del button { border: none; background: none; color: var(--muted); font-size: 11px;
+    padding: 2px; visibility: hidden; cursor: pointer; }
+  tr:hover td.del button { visibility: visible; }
+  td.del button:hover { color: var(--down); }
+  td.label:hover { color: var(--accent); cursor: pointer; text-decoration: underline dotted; }
+  td.editcell { padding: 4px 8px; }
+  td.editcell .form { display: grid; grid-template-columns: 36px 1fr 96px auto auto; gap: 4px; }
+  td.editcell .form input { padding: 4px 6px; border: 1px solid var(--border);
+    border-radius: 5px; font: inherit; min-width: 0; }
+  .block table tr { cursor: grab; }
+  .block table tr:active { cursor: grabbing; }
+  tr.row-dragging td { opacity: .35; }
+  .up { color: var(--up); } .down { color: var(--down); }
+  tr.closed td { background: var(--closed); }
+  tr.closed td.time { color: var(--closed-t); }
+  .na { color: var(--muted); font-weight: 400; }
+  @keyframes flashG { from { background: var(--flash-g); } to { background: transparent; } }
+  @keyframes flashR { from { background: var(--flash-r); } to { background: transparent; } }
+  tr.fg td { animation: flashG 1.2s ease-out; } tr.fr td { animation: flashR 1.2s ease-out; }
+
+  .addrow { padding: 5px 10px; border-top: 1px solid var(--rowline); flex: 0 0 auto; }
+  .addrow .addbtn { border: none; background: none; color: var(--muted);
+    font-size: 12px; padding: 2px 0; }
+  .addrow .addbtn:hover { color: var(--accent); }
+  .addrow .form { display: grid; grid-template-columns: 36px 1fr 96px auto auto; gap: 4px; }
+  .addrow .form input { padding: 4px 6px; border: 1px solid var(--border);
+    border-radius: 5px; font: inherit; min-width: 0; }
+
+  .grip-corner { position: absolute; right: 0; bottom: 0; width: 16px; height: 16px;
+    cursor: nwse-resize; color: var(--muted); font-size: 10px; line-height: 16px;
+    text-align: center; user-select: none; z-index: 5; opacity: .5; }
+  .grip-corner:hover { opacity: 1; color: var(--accent); }
+
+  .tvholder { width: 100%; flex: 1 1 auto; min-height: 0; }
+
+  table.matrix { table-layout: auto; }
+  table.matrix th { padding: 5px 6px; font-size: 11px; color: var(--muted);
+    border-bottom: 1px solid var(--border); text-align: right; font-weight: 600; }
+  table.matrix th:first-child { text-align: left; padding-left: 10px; }
+  table.matrix td { text-align: right; font-variant-numeric: tabular-nums;
+    font-weight: 600; font-size: 12px; }
+  table.matrix td.tenor { text-align: left; color: var(--muted); font-weight: 600;
+    font-size: 11px; }
+  table.matrix .mchg { font-size: 9px; font-weight: 600; margin-left: 3px; }
+
+  /* modal */
+  .overlay { position: fixed; inset: 0; background: rgba(20,25,35,.45); z-index: 1000;
+    display: flex; align-items: flex-start; justify-content: center; padding: 40px 16px; }
+  .modal { background: var(--card); border-radius: 10px; width: 660px; max-width: 100%;
+    max-height: 85vh; overflow: auto; padding: 18px; }
+  .modal h3 { font-size: 15px; margin-bottom: 12px; }
+  .modal label { font-size: 11px; color: var(--muted); display: block; margin: 10px 0 3px; }
+  .modal input[type=text], .modal input[type=number], .modal textarea {
+    width: 100%; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px;
+    font: inherit; }
+  .rows { margin-top: 8px; }
+  .row { display: grid; grid-template-columns: 44px 1fr 130px 92px; gap: 6px; margin-bottom: 6px; }
+  .row input { padding: 5px 7px; border: 1px solid var(--border); border-radius: 6px; font: inherit; }
+  .row .ctl { display: flex; gap: 2px; }
+  .row .ctl button { padding: 4px 6px; }
+  .modal-actions { display: flex; gap: 8px; margin-top: 16px; }
+  .danger { color: var(--down); border-color: var(--down); }
+  .hint { font-size: 11px; color: var(--muted); margin-top: 6px; }
+  .trash-row { display: flex; align-items: center; gap: 8px; padding: 6px 0;
+    border-bottom: 1px solid var(--rowline); }
+  .trash-row .info { flex: 1; }
+  .trash-row .info small { color: var(--muted); display: block; }
+
+  /* responsivo: celular/tablet — blocos empilhados em coluna única */
+  @media (max-width: 900px) {
+    header { flex-wrap: wrap; gap: 8px; padding: 8px 12px; }
+    header .legend { display: none; }
+    .board { padding: 10px; min-width: 0 !important; }
+    .block { position: static !important; width: 100% !important;
+      margin-bottom: 12px; }
+    .block:not(:has(.tvholder)) { height: auto !important; }
+    .grip-corner { display: none; }
+    .block-head { cursor: default; }
+    .block-head .grip { display: none; }
+    td.del button { visibility: visible; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Dashboard Macro</h1>
+  <span class="status" id="status">carregando…</span>
+  <span class="legend"><span>fundo rosado</span> = mercado fechado/sem pregão</span>
+  <div class="spacer"></div>
+  <button id="trash-btn" onclick="openTrash()" title="Lixeira — itens excluídos">🗑</button>
+  <button id="theme-btn" onclick="toggleTheme()" title="Alternar claro/escuro">🌙</button>
+  <button id="newblock-btn" onclick="addBlock()">+ Novo bloco</button>
+</header>
+<div class="board" id="board"></div>
+
+<div id="modal-root"></div>
+
+<script>
+let CFG = null;
+let QUOTES = {};
+let PREV = {};
+let META = {};
+let DRAGITEM = null;   // ativo sendo arrastado: {from, sym, idx}
+let ZTOP = 10;
+const SNAP = 10;
+
+const fmtNum = (v, forceDec) => {
+  if (v == null || isNaN(v)) return "–";
+  const a = Math.abs(v);
+  const dec = forceDec != null ? forceDec : (a >= 1000 ? 2 : a >= 10 ? 2 : a >= 1 ? 3 : 4);
+  return v.toLocaleString("pt-BR", { minimumFractionDigits: dec, maximumFractionDigits: dec });
+};
+const fmtPct = v => v == null ? "–" :
+  (v >= 0 ? "+" : "") + v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + "%";
+const fmtTime = ts => {
+  if (!ts) return "";
+  const d = new Date(ts * 1000), now = new Date();
+  return d.toDateString() === now.toDateString()
+    ? d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+    : d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+};
+function esc(s) { return (s || "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+// ---------------- layout livre ----------------
+function estH(b) {
+  if (b.h) return b.h;
+  if (b.type === "quotes") return 40 + 25.4 * (b.items || []).length + 28;
+  if (b.type === "matrix") return 36 + 28 * ((b.tenors || []).length + 1);
+  return tvHeight(b) + 38;
+}
+function migrateLayout() {
+  if (CFG.blocks.every(b => b.x != null)) return false;
+  const cols = {};
+  CFG.blocks.forEach(b => { (cols[b.col || 1] = cols[b.col || 1] || []).push(b); });
+  let x = 18;
+  Object.keys(cols).map(Number).sort((a, b) => a - b).forEach(c => {
+    const w = Math.max(...cols[c].map(b => b.w || 360));
+    let y = 14;
+    cols[c].forEach(b => { b.x = x; b.y = y; y += estH(b) + 14; });
+    x += w + 14;
+  });
+  return true;
+}
+function updateExtent() {
+  const board = document.getElementById("board");
+  let mw = 0, mh = 0;
+  CFG.blocks.forEach(b => {
+    mw = Math.max(mw, (b.x || 0) + (b.w || 360));
+    mh = Math.max(mh, (b.y || 0) + estH(b));
+  });
+  board.style.minWidth = (mw + 60) + "px";
+  board.style.minHeight = (mh + 60) + "px";
+}
+
+// ---------------- render ----------------
+const isMobile = () => window.matchMedia("(max-width: 900px)").matches;
+
+function renderBoard() {
+  const board = document.getElementById("board");
+  board.innerHTML = "";
+  // ordem de leitura: coluna a coluna (x, depois y) — vale p/ o modo empilhado
+  const ordered = [...CFG.blocks].sort((a, b) =>
+    ((a.x || 0) - (b.x || 0)) || ((a.y || 0) - (b.y || 0)));
+  ordered.forEach(b => board.appendChild(blockEl(b)));
+  updateExtent();
+  applyQuotes(true);
+  updateTrashBtn();
+}
+
+function blockEl(b) {
+  const bi = CFG.blocks.indexOf(b);
+  const div = document.createElement("div");
+  div.className = "block";
+  div.dataset.id = b.id;
+  div.style.left = (b.x || 18) + "px";
+  div.style.top = (b.y || 14) + "px";
+  div.style.width = (b.w || 360) + "px";
+  if (b.h) div.style.height = b.h + "px";
+  if (b.z) { div.style.zIndex = b.z; ZTOP = Math.max(ZTOP, b.z); }
+  div.addEventListener("mousedown", () => {
+    b.z = ++ZTOP;
+    div.style.zIndex = b.z;
+  });
+  div.innerHTML = `<div class="block-head"><span class="grip">⠿</span><h2>${esc(b.title)}</h2>
+    <button class="gear" title="Editar bloco" onclick="editBlock(${bi})">⚙</button></div>`;
+  // mover o bloco livremente pelo cabeçalho
+  div.querySelector(".block-head").addEventListener("mousedown", e => {
+    if (e.target.closest("button")) return;
+    startBlockMove(e, div, b);
+  });
+
+  if (b.type === "tradingview") {
+    const holder = document.createElement("div");
+    holder.className = "tvholder";
+    const h = b.h ? b.h - 38 : tvHeight(b);
+    if (!b.h) holder.style.height = h + "px";
+    holder.appendChild(tvWidget(b, h));
+    div.appendChild(holder);
+  } else if (b.type === "matrix") {
+    const wrap = document.createElement("div");
+    wrap.className = "bwrap";
+    const tbl = document.createElement("table");
+    tbl.className = "matrix";
+    const labels = b.tenorLabels || b.tenors;
+    tbl.innerHTML =
+      `<tr><th></th>${(b.countries || []).map(ct =>
+          `<th title="${ct.code}">${ct.flag || ct.code}</th>`).join("")}</tr>` +
+      (b.tenors || []).map((tn, ti) =>
+        `<tr><td class="tenor">${esc(labels[ti] || tn)}</td>${(b.countries || []).map(ct =>
+          `<td id="mx-${b.id}-${ct.code}-${tn}" class="na">–</td>`).join("")}</tr>`).join("");
+    wrap.appendChild(tbl);
+    div.appendChild(wrap);
+  } else {
+    const wrap = document.createElement("div");
+    wrap.className = "bwrap";
+    const tbl = document.createElement("table");
+    tbl.innerHTML = (b.items || []).map(it =>
+      `<tr id="r-${b.id}-${esc(it.symbol)}" draggable="true">
+         <td class="flag">${it.flag || ""}</td>
+         <td class="label" title="${esc(it.symbol)}">${esc(it.label || it.symbol)}</td>
+         <td class="price">–</td><td class="pct">–</td><td class="time"></td>
+         <td class="del"><button title="remover (vai p/ lixeira)">✕</button></td>
+       </tr>`).join("");
+    [...tbl.rows].forEach((tr, ri) => {
+      tr.addEventListener("dragstart", e => {
+        e.stopPropagation();
+        DRAGITEM = { from: b.id, sym: (b.items[ri] || {}).symbol, idx: ri };
+        tr.classList.add("row-dragging");
+        e.dataTransfer.effectAllowed = "move";
+      });
+      tr.addEventListener("dragend", () => {
+        DRAGITEM = null;
+        tr.classList.remove("row-dragging");
+        document.querySelectorAll(".item-drop").forEach(el => el.classList.remove("item-drop"));
+      });
+      tr.querySelector("td.del button").addEventListener("click", e => {
+        e.stopPropagation();
+        deleteItem(b, ri);
+      });
+      tr.querySelector("td.label").addEventListener("click", e => {
+        e.stopPropagation();
+        editItemInline(tr, b, ri, div);
+      });
+    });
+    div.addEventListener("dragover", e => {
+      if (!DRAGITEM) return;
+      e.preventDefault(); e.stopPropagation();
+      div.classList.add("item-drop");
+    });
+    div.addEventListener("dragleave", () => div.classList.remove("item-drop"));
+    div.addEventListener("drop", e => onItemDrop(e, b, div));
+    wrap.appendChild(tbl);
+    div.appendChild(wrap);
+    const add = document.createElement("div");
+    add.className = "addrow";
+    add.innerHTML = `<button class="addbtn">+ adicionar ticker</button>`;
+    add.querySelector(".addbtn").addEventListener("click", () => showAddForm(add, b, div));
+    div.appendChild(add);
+  }
+
+  const grip = document.createElement("div");
+  grip.className = "grip-corner";
+  grip.textContent = "◢";
+  grip.title = "Arraste p/ redimensionar este bloco";
+  grip.addEventListener("mousedown", e => {
+    e.stopPropagation();
+    startBlockResize(e, div, b);
+  });
+  div.appendChild(grip);
+  return div;
+}
+
+function deleteItem(b, ri) {
+  const it = b.items[ri];
+  if (!it) return;
+  (CFG.trash = CFG.trash || []).push({
+    kind: "item", from: b.id, fromTitle: b.title, item: it, ts: Date.now()
+  });
+  b.items.splice(ri, 1);
+  pushConfig(); renderBoard();
+}
+
+function tvGroups(b) {
+  if (b.groups && b.groups.length) return b.groups;
+  return [{ name: b.title, symbols: b.symbols || [] }];
+}
+function tvHeight(b) {
+  const gs = tvGroups(b);
+  const nsyms = gs.reduce((a, g) => a + (g.symbols || []).length, 0);
+  return 100 + gs.length * 36 + nsyms * 39;
+}
+function tvWidget(b, h) {
+  const wrap = document.createElement("div");
+  wrap.className = "tradingview-widget-container";
+  wrap.style.height = "100%";
+  const inner = document.createElement("div");
+  inner.className = "tradingview-widget-container__widget";
+  inner.style.height = "100%";
+  wrap.appendChild(inner);
+  const s = document.createElement("script");
+  s.type = "text/javascript";
+  s.src = "https://s3.tradingview.com/external-embedding/embed-widget-market-quotes.js";
+  s.async = true;
+  s.text = JSON.stringify({
+    width: "100%", height: h, locale: "br",
+    colorTheme: CFG.theme === "dark" ? "dark" : "light", isTransparent: true,
+    symbolsGroups: tvGroups(b).map(g => ({
+      name: g.name, symbols: (g.symbols || []).map(x => ({ name: x }))
+    }))
+  });
+  wrap.appendChild(s);
+  return wrap;
+}
+
+function applyQuotes(initial) {
+  CFG.blocks.forEach(b => {
+    if (b.type === "tradingview") return;
+    if (b.type === "matrix") {
+      (b.tenors || []).forEach(tn => {
+        (b.countries || []).forEach(ct => {
+          const td = document.getElementById(`mx-${b.id}-${ct.code}-${tn}`);
+          if (!td) return;
+          const q = QUOTES[`tv:TVC:${ct.code}${tn}`];
+          if (!q || q.price == null) { td.textContent = "–"; td.className = "na"; return; }
+          const cls = q.chg_pct > 0 ? "up" : q.chg_pct < 0 ? "down" : "";
+          td.innerHTML = fmtNum(q.price, 2) +
+            (q.chg_pct != null ? `<span class="mchg ${cls}">${fmtPct(q.chg_pct)}</span>` : "");
+          td.className = "";
+          td.title = `${ct.code} ${tn} · var ${fmtPct(q.chg_pct)}`;
+        });
+      });
+      return;
+    }
+    (b.items || []).forEach(it => {
+      const tr = document.getElementById(`r-${b.id}-${it.symbol}`);
+      if (!tr) return;
+      const q = QUOTES[it.symbol];
+      const tds = tr.children;
+      if (!q || q.price == null) {
+        tds[2].textContent = "–"; tds[2].className = "price na";
+        tds[3].textContent = "–"; tds[3].className = "pct na";
+        return;
+      }
+      const old = PREV[it.symbol];
+      const dec = it.dec != null ? it.dec :
+        (it.symbol.startsWith("fred:") || it.symbol.startsWith("td:") ? 2 : null);
+      tds[2].textContent = fmtNum(q.price, dec); tds[2].className = "price";
+      tds[3].textContent = fmtPct(q.chg_pct);
+      tds[3].className = "pct " + (q.chg_pct > 0 ? "up" : q.chg_pct < 0 ? "down" : "");
+      tds[4].textContent = fmtTime(q.time);
+      const ageMin = q.time ? (Date.now() / 1000 - q.time) / 60 : 999;
+      const closed = (q.state && !/REGULAR|PRE|POST/.test(q.state)) || ageMin > 30;
+      tr.classList.toggle("closed", closed);
+      if (!initial && old != null && old !== q.price) {
+        tr.classList.remove("fg", "fr"); void tr.offsetWidth;
+        tr.classList.add(q.price > old ? "fg" : "fr");
+      }
+      PREV[it.symbol] = q.price;
+    });
+  });
+}
+
+// ---------------- mover & redimensionar ----------------
+function dragTrack(e, onMove, onEnd) {
+  e.preventDefault(); e.stopPropagation();
+  const mm = ev => onMove(ev);
+  const mu = ev => {
+    document.removeEventListener("mousemove", mm);
+    document.removeEventListener("mouseup", mu);
+    onEnd && onEnd(ev);
+  };
+  document.addEventListener("mousemove", mm);
+  document.addEventListener("mouseup", mu);
+}
+function startBlockMove(e, div, b) {
+  if (isMobile()) return;
+  const x0 = e.clientX, y0 = e.clientY;
+  const bx = b.x || 18, by = b.y || 14;
+  div.classList.add("moving");
+  dragTrack(e,
+    ev => {
+      div.style.left = Math.max(0, bx + ev.clientX - x0) + "px";
+      div.style.top = Math.max(0, by + ev.clientY - y0) + "px";
+    },
+    ev => {
+      div.classList.remove("moving");
+      b.x = Math.round(Math.max(0, bx + ev.clientX - x0) / SNAP) * SNAP;
+      b.y = Math.round(Math.max(0, by + ev.clientY - y0) / SNAP) * SNAP;
+      div.style.left = b.x + "px";
+      div.style.top = b.y + "px";
+      updateExtent();
+      pushConfig();
+    });
+}
+function startBlockResize(e, div, b) {
+  if (isMobile()) return;
+  const x0 = e.clientX, y0 = e.clientY;
+  const r = div.getBoundingClientRect();
+  dragTrack(e,
+    ev => {
+      div.style.width = Math.max(240, r.width + ev.clientX - x0) + "px";
+      div.style.height = Math.max(110, r.height + ev.clientY - y0) + "px";
+    },
+    () => {
+      b.w = Math.round(div.getBoundingClientRect().width / SNAP) * SNAP;
+      b.h = Math.round(div.getBoundingClientRect().height / SNAP) * SNAP;
+      updateExtent();
+      pushConfig();
+      renderBoard(); // re-embute TV no tamanho novo
+    });
+}
+
+// ---------------- mover ativos entre blocos ----------------
+function onItemDrop(e, b, div) {
+  if (!DRAGITEM) return;
+  e.preventDefault(); e.stopPropagation();
+  div.classList.remove("item-drop");
+  const src = CFG.blocks.find(x => x.id === DRAGITEM.from);
+  if (!src || !src.items) return;
+  let si = DRAGITEM.idx;
+  if (!src.items[si] || src.items[si].symbol !== DRAGITEM.sym)
+    si = src.items.findIndex(it => it.symbol === DRAGITEM.sym);
+  if (si < 0) return;
+  const [item] = src.items.splice(si, 1);
+  const rs = [...div.querySelectorAll("tr")]
+    .filter(r => r.id !== `r-${DRAGITEM.from}-${DRAGITEM.sym}`);
+  b.items = b.items || [];
+  let insertAt = b.items.length;
+  for (let i = 0; i < rs.length; i++) {
+    const r = rs[i].getBoundingClientRect();
+    if (e.clientY < r.top + r.height / 2) { insertAt = i; break; }
+  }
+  insertAt = Math.min(insertAt, b.items.length);
+  b.items.splice(insertAt, 0, item);
+  DRAGITEM = null;
+  pushConfig();
+  renderBoard();
+}
+
+// ---------------- editar ativo (clique no nome) ----------------
+function editItemInline(tr, b, ri, blockDiv) {
+  const it = b.items[ri];
+  if (!it) return;
+  blockDiv.draggable = false;
+  tr.draggable = false;
+  tr.innerHTML = `<td class="editcell" colspan="6"><div class="form">
+    <input type="text" class="f-flag" value="${esc(it.flag || "")}" placeholder="🏳️" draggable="false">
+    <input type="text" class="f-label" value="${esc(it.label || "")}" placeholder="Nome" draggable="false">
+    <input type="text" class="f-sym" value="${esc(it.symbol || "")}" placeholder="Símbolo*" draggable="false">
+    <button class="primary f-ok">OK</button><button class="f-cancel">✕</button>
+  </div></td>`;
+  tr.addEventListener("dragstart", e => { e.preventDefault(); e.stopPropagation(); });
+  tr.addEventListener("mousedown", e => e.stopPropagation());
+  const ok = async () => {
+    let s = tr.querySelector(".f-sym").value.trim();
+    if (!s) return;
+    const m = s.match(/^(fred|tv|td):(.*)$/i);
+    s = m ? m[1].toLowerCase() + ":" + m[2].trim() : s.toUpperCase();
+    b.items[ri] = {
+      ...it,
+      flag: tr.querySelector(".f-flag").value.trim(),
+      label: tr.querySelector(".f-label").value.trim(),
+      symbol: s
+    };
+    await pushConfig(); renderBoard();
+  };
+  tr.querySelector(".f-ok").addEventListener("click", ok);
+  tr.querySelectorAll("input").forEach(inp =>
+    inp.addEventListener("keydown", e => {
+      if (e.key === "Enter") ok();
+      if (e.key === "Escape") renderBoard();
+    }));
+  tr.querySelector(".f-cancel").addEventListener("click", () => renderBoard());
+  tr.querySelector(".f-label").focus();
+}
+
+// ---------------- adicionar ticker ----------------
+function showAddForm(container, b, blockDiv) {
+  container.innerHTML = `<div class="form">
+    <input type="text" class="f-flag" placeholder="🏳️" draggable="false">
+    <input type="text" class="f-label" placeholder="Nome (opcional)" draggable="false">
+    <input type="text" class="f-sym" placeholder="Símbolo*" draggable="false">
+    <button class="primary f-ok">OK</button><button class="f-cancel">✕</button>
+  </div>`;
+  container.addEventListener("dragstart", e => { e.preventDefault(); e.stopPropagation(); });
+  container.addEventListener("mousedown", e => e.stopPropagation());
+  const sym = container.querySelector(".f-sym");
+  const ok = async () => {
+    let s = sym.value.trim();
+    if (!s) { sym.focus(); return; }
+    const m = s.match(/^(fred|tv|td):(.*)$/i);
+    if (m) {
+      const pfx = m[1].toLowerCase();
+      s = pfx + ":" + (pfx === "td" ? m[2].trim().toLowerCase() : m[2].trim());
+    } else s = s.toUpperCase();
+    b.items = b.items || [];
+    b.items.push({
+      flag: container.querySelector(".f-flag").value.trim(),
+      label: container.querySelector(".f-label").value.trim(),
+      symbol: s
+    });
+    await pushConfig(); renderBoard();
+  };
+  container.querySelector(".f-ok").addEventListener("click", ok);
+  container.querySelectorAll("input").forEach(inp =>
+    inp.addEventListener("keydown", e => {
+      if (e.key === "Enter") ok();
+      if (e.key === "Escape") renderBoard();
+    }));
+  container.querySelector(".f-cancel").addEventListener("click", () => renderBoard());
+  container.querySelector(".f-flag").focus();
+}
+
+// ---------------- lixeira ----------------
+function updateTrashBtn() {
+  const n = (CFG.trash || []).length;
+  document.getElementById("trash-btn").textContent = n ? `🗑 ${n}` : "🗑";
+}
+function openTrash() {
+  const root = document.getElementById("modal-root");
+  const t = CFG.trash || [];
+  const rows = t.length ? t.map((e, i) => {
+    const what = e.kind === "block"
+      ? `Bloco: <b>${esc(e.block.title)}</b> (${(e.block.items || []).length} ativos)`
+      : `${e.item.flag || ""} <b>${esc(e.item.label || e.item.symbol)}</b> <small>${esc(e.item.symbol)} · era do bloco "${esc(e.fromTitle)}"</small>`;
+    return `<div class="trash-row">
+      <div class="info">${what}</div>
+      <button onclick="restoreTrash(${i})">Restaurar</button>
+      <button class="danger" onclick="purgeTrash(${i})">Apagar de vez</button>
+    </div>`;
+  }).join("") : `<p class="hint">Lixeira vazia. Tudo que você excluir (ativos e blocos) fica guardado aqui.</p>`;
+  root.innerHTML = `
+  <div class="overlay" onclick="if(event.target===this)closeModal()">
+    <div class="modal">
+      <h3>🗑 Lixeira</h3>
+      ${rows}
+      <div class="modal-actions">
+        ${t.length ? `<button class="danger" onclick="emptyTrash()">Esvaziar lixeira</button>` : ""}
+        <div style="flex:1"></div>
+        <button onclick="closeModal()">Fechar</button>
+      </div>
+    </div>
+  </div>`;
+}
+async function restoreTrash(i) {
+  const e = (CFG.trash || [])[i];
+  if (!e) return;
+  if (e.kind === "block") {
+    e.block.x = 40; e.block.y = 40; e.block.z = ++ZTOP;
+    CFG.blocks.push(e.block);
+  } else {
+    let target = CFG.blocks.find(b => b.id === e.from && b.type === "quotes");
+    if (!target) {
+      target = { id: e.from, title: e.fromTitle, type: "quotes", x: 40, y: 40, items: [] };
+      CFG.blocks.push(target);
+    }
+    target.items.push(e.item);
+  }
+  CFG.trash.splice(i, 1);
+  await pushConfig(); renderBoard(); openTrash();
+}
+async function purgeTrash(i) {
+  CFG.trash.splice(i, 1);
+  await pushConfig(); updateTrashBtn(); openTrash();
+}
+async function emptyTrash() {
+  if (!confirm("Apagar definitivamente todos os itens da lixeira?")) return;
+  CFG.trash = [];
+  await pushConfig(); updateTrashBtn(); openTrash();
+}
+
+// ---------------- editor ----------------
+function editBlock(bi) {
+  const b = CFG.blocks[bi];
+  const root = document.getElementById("modal-root");
+  const isTV = b.type === "tradingview";
+  const isMX = b.type === "matrix";
+  let tvText = "";
+  if (isTV) {
+    tvText = tvGroups(b).map(g => "# " + g.name + "\n" + (g.symbols || []).join("\n")).join("\n\n");
+  }
+  const rowsHtml = (isTV || isMX) ? "" : (b.items || []).map(it => rowHtml(it)).join("");
+  root.innerHTML = `
+  <div class="overlay" onclick="if(event.target===this)closeModal()">
+    <div class="modal">
+      <h3>Editar bloco</h3>
+      <label>Título</label>
+      <input type="text" id="m-title" value="${esc(b.title)}">
+      ${isMX ? `
+        <label>Tenores (separados por vírgula, formato TradingView: 02Y, 05Y, 10Y, 30Y)</label>
+        <input type="text" id="m-tenors" value="${esc((b.tenors || []).join(", "))}">
+        <label>Países (CÓDIGO bandeira, separados por vírgula)</label>
+        <input type="text" id="m-countries" value="${esc((b.countries || []).map(ct => ct.code + " " + (ct.flag || "")).join(", "))}">
+        <div class="hint">Códigos do TradingView (TVC): US, BR, JP, GB, DE, FR, IT, CN, AU, CA, IN, ES, MX…</div>`
+      : isTV ? `
+        <label>Símbolos TradingView — linhas começando com # criam um grupo</label>
+        <textarea id="m-tvsyms" rows="12">${esc(tvText)}</textarea>
+        <div class="hint">Ex.: # Brasil — DIs / BMFBOVESPA:DI1F2027 / ... / # Europa / EUREX:FGBL1!</div>`
+      : `
+        <label>Ativos (bandeira · nome · símbolo)</label>
+        <div class="rows" id="m-rows">${rowsHtml}</div>
+        <button onclick="addRow()">+ adicionar ativo</button>
+        <div class="hint">Yahoo: ^BVSP, PETR4.SA, EUR=X, GC=F, BTC-USD · FRED: fred:T10Y2Y · TradingView: tv:TVC:US10Y · Tesouro: td:ipca-2032, td:ipca-js-2037, td:pre-2029</div>`}
+      <div class="modal-actions">
+        <button class="danger" onclick="deleteBlock(${bi})">Excluir bloco</button>
+        <div style="flex:1"></div>
+        <button onclick="closeModal()">Cancelar</button>
+        <button class="primary" onclick="saveBlock(${bi})">Salvar</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function rowHtml(it) {
+  return `<div class="row">
+    <input type="text" class="r-flag" value="${esc(it.flag || "")}" placeholder="🏳️">
+    <input type="text" class="r-label" value="${esc(it.label || "")}" placeholder="Nome">
+    <input type="text" class="r-sym" value="${esc(it.symbol || "")}" placeholder="Símbolo">
+    <div class="ctl">
+      <button title="subir" onclick="moveRow(this,-1)">▲</button>
+      <button title="descer" onclick="moveRow(this,1)">▼</button>
+      <button title="remover" onclick="this.closest('.row').remove()">✕</button>
+    </div></div>`;
+}
+function addRow() {
+  const div = document.createElement("div");
+  div.innerHTML = rowHtml({});
+  document.getElementById("m-rows").appendChild(div.firstElementChild);
+}
+function moveRow(btn, dir) {
+  const row = btn.closest(".row"), parent = row.parentElement;
+  const sib = dir < 0 ? row.previousElementSibling : row.nextElementSibling;
+  if (sib) dir < 0 ? parent.insertBefore(row, sib) : parent.insertBefore(sib, row);
+}
+function closeModal() { document.getElementById("modal-root").innerHTML = ""; }
+
+async function saveBlock(bi) {
+  const b = CFG.blocks[bi];
+  b.title = document.getElementById("m-title").value.trim() || b.title;
+  if (b.type === "matrix") {
+    b.tenors = document.getElementById("m-tenors").value
+      .split(",").map(s => s.trim().toUpperCase()).filter(Boolean);
+    b.tenorLabels = b.tenors.map(t => t.replace(/^0/, "").replace("Y", "A"));
+    b.countries = document.getElementById("m-countries").value
+      .split(",").map(s => s.trim()).filter(Boolean)
+      .map(s => { const p = s.split(/\s+/); return { code: p[0].toUpperCase(), flag: p[1] || "" }; });
+  } else if (b.type === "tradingview") {
+    const lines = document.getElementById("m-tvsyms").value.split("\n").map(s => s.trim());
+    const groups = [];
+    let cur = null;
+    for (const ln of lines) {
+      if (!ln) continue;
+      if (ln.startsWith("#")) { cur = { name: ln.slice(1).trim(), symbols: [] }; groups.push(cur); }
+      else { if (!cur) { cur = { name: b.title, symbols: [] }; groups.push(cur); } cur.symbols.push(ln); }
+    }
+    b.groups = groups;
+    delete b.symbols;
+  } else {
+    b.items = [...document.querySelectorAll("#m-rows .row")].map(r => ({
+      flag: r.querySelector(".r-flag").value.trim(),
+      label: r.querySelector(".r-label").value.trim(),
+      symbol: r.querySelector(".r-sym").value.trim()
+    })).filter(it => it.symbol);
+  }
+  await pushConfig();
+  closeModal();
+  renderBoard();
+}
+
+async function deleteBlock(bi) {
+  const b = CFG.blocks[bi];
+  if (!confirm(`Excluir o bloco "${b.title}"? (vai para a lixeira)`)) return;
+  (CFG.trash = CFG.trash || []).push({ kind: "block", block: b, ts: Date.now() });
+  CFG.blocks.splice(bi, 1);
+  await pushConfig(); closeModal(); renderBoard();
+}
+
+async function addBlock() {
+  const name = prompt("Nome do novo bloco:", "Novo bloco");
+  if (!name) return;
+  const tv = !confirm("OK = bloco de cotações · Cancelar = widget TradingView");
+  const base = { id: "b" + Date.now(), title: name, x: 60, y: 60, z: ++ZTOP };
+  CFG.blocks.push(tv
+    ? { ...base, type: "tradingview", groups: [] }
+    : { ...base, type: "quotes", items: [] });
+  await pushConfig(); renderBoard();
+  editBlock(CFG.blocks.length - 1);
+}
+
+// ---------------- tema ----------------
+function applyTheme() {
+  const dark = CFG.theme === "dark";
+  document.body.classList.toggle("dark", dark);
+  document.getElementById("theme-btn").textContent = dark ? "☀️" : "🌙";
+}
+async function toggleTheme() {
+  CFG.theme = CFG.theme === "dark" ? "light" : "dark";
+  applyTheme();
+  await pushConfig();
+  renderBoard();
+}
+
+// Versão nuvem (GitHub Pages): só leitura. Tema fica salvo no aparelho.
+const CLOUD = !/^(localhost|127\.|192\.168\.|10\.|172\.)/.test(location.hostname) && location.protocol !== "file:";
+async function pushConfig() {
+  if (CLOUD) { try { localStorage.setItem("dm_theme", CFG.theme); } catch (e) {} return; }
+  try {
+    const r = await fetch("/api/config", { method: "POST",
+      headers: { "Content-Type": "application/json" }, body: JSON.stringify(CFG) });
+    if (!r.ok) throw 0;
+  } catch (e) { alert("Falha ao salvar a configuração."); }
+}
+
+// ---------------- polling ----------------
+async function poll() {
+  try {
+    const r = await fetch(CLOUD ? "quotes.json?t=" + Date.now() : "/api/quotes", { cache: "no-store" });
+    const j = await r.json();
+    QUOTES = j.quotes || {};
+    META = j.meta || {};
+    applyQuotes(false);
+    const t = META.last_update ? new Date(META.last_update * 1000).toLocaleTimeString("pt-BR") : "–";
+    const fails = (META.failed || []).length;
+    const el = document.getElementById("status");
+    let age = "";
+    if (CLOUD && META.last_update) {
+      const min = Math.round((Date.now() / 1000 - META.last_update) / 60);
+      age = ` (há ${min} min)`;
+    }
+    el.textContent = `${CLOUD ? "☁️ " : ""}atualizado ${t}${age} · fonte yahoo/${META.mode || "-"}` +
+      (fails ? ` · ${fails} símbolo(s) sem dado (clique p/ ver)` : "");
+    el.classList.toggle("haserr", fails > 0);
+  } catch (e) {
+    document.getElementById("status").textContent = "sem conexão com o servidor";
+  }
+}
+document.getElementById("status").addEventListener("click", () => {
+  if ((META.failed || []).length)
+    alert("Símbolos sem dado:\n\n" + META.failed.join("\n"));
+});
+
+// ---------------- init ----------------
+(async function init() {
+  CFG = await (await fetch(CLOUD ? "config.json?t=" + Date.now() : "/api/config", { cache: "no-store" })).json();
+  if (CLOUD) {
+    document.body.classList.add("cloud");
+    try { const th = localStorage.getItem("dm_theme"); if (th) CFG.theme = th; } catch (e) {}
+    migrateLayout();
+  } else if (migrateLayout()) pushConfig();
+  applyTheme();
+  renderBoard();
+  await poll();
+  setInterval(poll, CLOUD ? 60000 : Math.max(5, CFG.refresh_seconds || 15) * 1000 / 2);
+})();
+</script>
+</body>
+</html>
