@@ -779,6 +779,32 @@ async function pushConfig() {
   } catch (e) { alert("Falha ao salvar a configuração."); }
 }
 
+// ---------------- Tesouro Direto (nuvem: buscado pelo navegador) ----------------
+// O site do Tesouro bloqueia servidores de nuvem (403), mas responde ao navegador.
+let TD = {}, TD_TS = 0;
+function tdSlug(nm, year) {
+  const base = nm.includes("IPCA") ? "ipca" : nm.includes("Prefixado") ? "pre" :
+    nm.includes("Selic") ? "selic" : nm.includes("Renda+") ? "renda" :
+    nm.includes("Educa+") ? "educa" : "titulo";
+  return "td:" + base + (nm.includes("Juros Semestrais") ? "-js" : "") + "-" + year;
+}
+async function fetchTD() {
+  if (Date.now() - TD_TS < 600000) return;
+  try {
+    const j = await (await fetch("https://www.tesourodireto.com.br/o/c/rentabilidades/?pageSize=200")).json();
+    const out = {}, now = Math.floor(Date.now() / 1000);
+    for (const bd of (j.items || [])) {
+      const nm = bd.treasuryBondName || "", year = String(bd.targetYear || "").slice(0, 4);
+      let rate = bd.investmentProfitabilityFee, state = "REGULAR";
+      if (!rate) { rate = bd.redemptionProfitabilityFee; state = "CLOSED"; }
+      if (!nm || !year || !rate) continue;
+      const s = tdSlug(nm, year);
+      out[s] = { symbol: s, price: rate, chg: null, chg_pct: null, time: now, currency: "%", state };
+    }
+    TD = out; TD_TS = Date.now();
+  } catch (e) {}
+}
+
 // ---------------- polling ----------------
 async function poll() {
   try {
@@ -786,6 +812,11 @@ async function poll() {
     const j = await r.json();
     QUOTES = j.quotes || {};
     META = j.meta || {};
+    if (CLOUD) {
+      await fetchTD();
+      Object.assign(QUOTES, TD);
+      META.failed = (META.failed || []).filter(s => !(QUOTES[s] && QUOTES[s].price != null));
+    }
     applyQuotes(false);
     const t = META.last_update ? new Date(META.last_update * 1000).toLocaleTimeString("pt-BR") : "–";
     const fails = (META.failed || []).length;
